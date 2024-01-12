@@ -1,0 +1,34 @@
+{
+  "name": "jikangraphql",
+  "version": "1.0.0",
+  "description": "Apollo GQL Server for MyAnimeList -> Powered by Jikan",
+  
+  "scripts": {
+    "compile": "tsc",
+    "start": "npm run compile && node ./dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adgsenpai/JikanGraphQL.git"
+  },
+  "author": "Ashlin Darius Govindasamy",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/adgsenpai/JikanGraphQL/issues"
+  },
+  "homepage": "https://github.com/adgsenpai/JikanGraphQL#readme",
+  "dependencies": {
+    "@apollo/server": "^4.10.0",
+    "apollo-server-express": "^3.13.0",
+    "express": "^4.18.2",
+    "graphql": "^16.8.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/graphql": "^14.5.0",
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "type": "module"
+}
