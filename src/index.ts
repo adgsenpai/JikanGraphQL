@@ -50,7 +50,42 @@ type Anime {
 }
 
 type Page {
-  media: [Anime]
+  Media: [Anime]  
+}
+
+type IndexPage{
+  banner: banner
+  trending: trending
+  popular: popular
+  topRated: popular
+}
+
+type Media {
+  id: ID!
+  title: Title
+  coverImage: CoverImage
+  format: String
+  duration: Int
+  meanScore: Int
+  nextAiringEpisode: NextAiringEpisode
+  bannerImage: String
+  description: String
+  genres: [String]
+  season: String
+  startDate: StartDate
+  status: String
+}
+
+type banner {
+  Media: [Media]
+}
+
+type trending {
+  Media: [Media]
+}
+
+type popular{
+  Media: [Media]
 }
 
 type Query {
@@ -63,7 +98,7 @@ type Query {
   searchAnime(page: Int, perPage: Int, keyword: String): Page
   searchGenre(page: Int, perPage: Int, genre: String): Page
   getList(perPage: Int, page: Int, sort: [String]): Page
-  indexPage(perPage: Int, page: Int, seasonYear: Int): Page
+  indexPage(perPage: Int, page: Int, seasonYear: Int): IndexPage
   animePage(id: ID!, perPage: Int): Page
   watchPage(id: ID!, perPage: Int): Page
 }
@@ -81,6 +116,7 @@ var mapAnimeBannerData = (anime: any) => {
       medium: anime.images.jpg.image_url,
       large: anime.images.jpg.large_image_url
     },
+    bannerImage: anime.images.large_image_url, 
     format: anime.type,
     duration: anime.duration,
     meanScore: anime.score,
@@ -198,7 +234,7 @@ const resolvers = {
       const paginatedList = animeList.slice(startIndex, startIndex + perPage);
 
       return {
-        media: paginatedList
+        Media: paginatedList
       };
     },
     getAnimeTitle: async (_, { id }) => {
@@ -214,38 +250,20 @@ const resolvers = {
       };
     },
     getPopularBanner: async (_, { seasonYear }) => {
+      // Determine the current season based on month and year
+      const currentMonth = new Date().getMonth();
+      const season = currentMonth <= 2 ? 'winter' : 
+                     currentMonth <= 5 ? 'spring' : 
+                     currentMonth <= 8 ? 'summer' : 'fall';
+    
       // Fetch popular anime for the given season year
-      const season = new Date().getMonth() <= 3 ? 'winter' :
-        new Date().getMonth() <= 6 ? 'spring' :
-          new Date().getMonth() <= 9 ? 'summer' : 'fall';
-
-      const response = await fetch(`https://api.jikan.moe/v4/seasons/${seasonYear}/${season}?sort=desc`);
+      const response = await fetch(`https://api.jikan.moe/v4/seasons/${seasonYear}/${season}?sort=popularity`);
       const data = await response.json();
-
-      // Filter and map data for AnimeBanner
-      const popularAnime = data.data.map(anime => {
-        return {
-          id: anime.mal_id,
-          title: {
-            romaji: anime.title,
-            english: anime.title_english
-          },
-          bannerImage: anime.images.jpg.large_image_url,
-          description: anime.synopsis,
-          format: anime.type,
-          duration: anime.duration,
-          meanScore: anime.score,
-          genres: anime.genres.map(genre => genre.name),
-          season: anime.season, // Ensure this field is provided by the API
-          startDate: {
-            year: anime.aired.from ? new Date(anime.aired.from).getFullYear() : null,
-          }
-        };
-      });
-
-      // You might want to implement further logic to sort by popularity or limit the number of results
-      return popularAnime;
+    
+      // Map and return data for AnimeBanner
+      return data.data.map(anime => mapAnimeBannerData(anime));
     },
+    
     searchAnime: async (_, { page, perPage, keyword }) => {
       const response = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(keyword)}&page=${page}&limit=${perPage}`);
       const data = await response.json();
@@ -271,7 +289,7 @@ const resolvers = {
       });
 
       return {
-        media: searchedAnime
+        Media: searchedAnime
       };
     },
     searchGenre: async (_, { page, perPage, genre }) => {
@@ -299,7 +317,7 @@ const resolvers = {
       });
 
       return {
-        media: genreAnime
+        Media: genreAnime
       };
     },
     getList: async (_, { perPage, page, sort }) => {
@@ -330,35 +348,36 @@ const resolvers = {
       });
 
       return {
-        media: animeList
+        Media: animeList
       };
     },
     indexPage: async (_, { perPage, page, seasonYear }) => {
-      // Resolver for fetching banner anime
-      const bannerResponse = await fetch(`https://api.jikan.moe/v4/seasons/${seasonYear}?sort=popularity&limit=1`);
+      // Fetch banner anime for the given season year, sorted by popularity
+      const season = determineSeason();
+      console.log(season);
+      const bannerResponse = await fetch(`https://api.jikan.moe/v4/seasons/${seasonYear}/${season}?sort=popularity&limit=1`);
       const bannerData = await bannerResponse.json();
+      console.log(bannerData);
       const bannerAnime = bannerData.data.map(anime => mapAnimeBannerData(anime));
-
-      // Resolver for fetching trending anime
-      const trendingResponse = await fetch(`https://api.jikan.moe/v4/top/anime?type=anime&filter=trending&page=${page}&limit=${perPage}`);
-      const trendingData = await trendingResponse.json();
-      const trendingAnime = trendingData.data.map(anime => mapAnimeInfoData(anime));
-
-      // Resolver for fetching popular anime
-      const popularResponse = await fetch(`https://api.jikan.moe/v4/top/anime?type=anime&filter=popular&page=${page}&limit=${perPage}`);
-      const popularData = await popularResponse.json();
-      const popularAnime = popularData.data.map(anime => mapAnimeInfoData(anime));
-
-      // Resolver for fetching top-rated anime
-      const topRatedResponse = await fetch(`https://api.jikan.moe/v4/top/anime?type=anime&filter=best&page=${page}&limit=${perPage}`);
-      const topRatedData = await topRatedResponse.json();
-      const topRatedAnime = topRatedData.data.map(anime => mapAnimeInfoData(anime));
-
+      console.log('bannerAnime', bannerAnime);
+    
+      // Fetch trending anime
+      const trendingAnime = await fetchSortedAnime('favorite', perPage, page);
+      console.log('trendingAnime', trendingAnime);
+    
+      // Fetch popular anime
+      const popularAnime = await fetchSortedAnime('bypopularity', perPage, page);
+      console.log('popularAnime', popularAnime);
+    
+      // Fetch top-rated anime
+      const topRatedAnime = await fetchSortedAnime('favorite', perPage, page);
+      console.log('topRatedAnime', topRatedAnime);
+    
       return {
-        banner: bannerAnime,
-        trending: { media: trendingAnime },
-        popular: { media: popularAnime },
-        topRated: { media: topRatedAnime }
+        banner: { Media: bannerAnime },  
+        trending: { Media: trendingAnime },
+        popular: { Media: popularAnime },
+        topRated: { Media: topRatedAnime }
       };
     },
     animePage: async (_, { id, perPage }) => {
@@ -405,7 +424,7 @@ const resolvers = {
           ...animeBanner
         },
         recommended: {
-          mediaRecommendation: recommendedAnime
+          MediaRecommendation: recommendedAnime
         }
       };
     },
@@ -414,6 +433,46 @@ const resolvers = {
   }
 
 };
+
+// Helper function to fetch sorted anime list
+async function fetchSortedAnime(filter, perPage, page) {
+  try {
+    //https://api.jikan.moe/v4/top/anime?type=tv&filter=airing&page=1&limit=8
+    const response = await fetch(`https://api.jikan.moe/v4/top/anime?type=tv&filter=${filter}&page=${page}&limit=${perPage}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    console.log('data', data);
+    
+    // Check if data.data is an array and has items
+    if (Array.isArray(data.data) && data.data.length > 0) {
+      return data.data.map(anime => mapAnimeInfoData(anime));
+    } else {
+      // Handle the case where data.data is empty or not an array
+      console.log('No data found or data is not in expected format');
+      return [];
+    }
+  } catch (error) {
+    console.error('Error fetching sorted anime:', error);
+    return []; // Return empty array in case of error
+  }
+}
+
+
+// Helper function to determine the current season
+function determineSeason() {
+  const month = new Date().getMonth() + 1;
+  if (month >= 3 && month <= 5) {
+    return 'spring';
+  } else if (month >= 6 && month <= 8) {
+    return 'summer';
+  } else if (month >= 9 && month <= 11) {
+    return 'fall';
+  } else {
+    return 'winter';
+  }
+}
 
 // The ApolloServer constructor requires two parameters: your schema
 // definition and your set of resolvers.
